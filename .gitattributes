@@ -1,0 +1,16 @@
+# Line endings: this tree is LF, everywhere, on every platform. The build runs POSIX shell scripts (tools/*.sh), the
+# Makefile, the linker scripts and the C sources through a Linux toolchain, and a CRLF working tree breaks them
+# before they start: /bin/sh reads a `#!/bin/sh\r` shebang as a bad interpreter, and make takes the \r as part of a
+# variable's value. Git for Windows ships core.autocrlf=true in its system config, so without this file a clone there
+# converts the whole tree on checkout. These rules override it, and a local core.autocrlf, for everyone.
+#
+# text=auto still runs Git's binary detection, so the files below are only belt and braces: they also keep Git from
+# ever diffing or merging them as text.
+* text=auto eol=lf
+
+# Test data and images: never converted, never diffed as text (tests/data/voice/README.md, docs/ux/screens)
+*.ambe binary
+*.imbe binary
+*.pcm binary
+*.png binary
+*.wav binary
