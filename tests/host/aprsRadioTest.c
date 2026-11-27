@@ -1031,14 +1031,22 @@ static void test_third_party_messages(void)
 	CHECK(wait_start(2, 5000));
 	wait_idle();
 	CHECK(aprs_msg_count() == 1 && nframes == 2);
-	// the station list: the iGate, not the Internet station (which must not count as heard on RF)
+	// the station list: both the iGate, heard on RF, and the Internet station whose packet it carried, which is
+	// what the packet is about. The Internet station is marked via_gate, so it is shown but never counts as heard
+	// on RF for the gating or digipeater rules
 	aprs_station_t s;
 	bool gate = false, inner = false;
 	for (uint8_t i = 0; aprs_station(i, &s); i++) {
-		gate |= strcmp(s.call, "Q1GTE") == 0;
-		inner |= strcmp(s.call, "Q1ABC-9") == 0;
+		if (strcmp(s.call, "Q1GTE") == 0) {
+			gate = true;
+			CHECK(!s.via_gate);
+		}
+		if (strcmp(s.call, "Q1ABC-9") == 0) {
+			inner = true;
+			CHECK(s.via_gate);
+		}
 	}
-	CHECK(gate && !inner);
+	CHECK(gate && inner);
 	// to another station, malformed, our own message gated back, nested: ignored, nothing sent
 	rx_line("Q1GTE>APDW17,WIDE2*:}Q1ABC-9>APQRX,TCPIP,Q1GTE*::Q1XYZ    :Not ours{78");
 	rx_line("Q1GTE>APDW17,WIDE2*:}garbage");
@@ -1065,6 +1073,48 @@ static void test_third_party_messages(void)
 	aprs_view_t v;
 	aprs_get_view(&v);
 	CHECK(v.msg_acked);
+#endif
+}
+
+// A position gated from APRS-IS onto RF ("}SRC>DST,TCPIP*,GATE*:info"). The station list must show the originator,
+// with its own position, symbol and comment, and not the iGate that carried it; the iGate's own entry must keep no
+// part of the carried packet. Before this was handled, the originator never appeared at all, the iGate appeared in
+// its place, and the carried packet's "SRC>DST,PATH:" text became the iGate's comment
+static void test_third_party_station(void)
+{
+#if CONFIG_APRS_RX
+	reset();
+	aprs_set_test_call("Q1TST");
+	configure(0, false);
+	rx_line("Q1GTE>APDW17,WIDE2*:}Q1ABC-9>APQRX,TCPIP*,Q1GTE*:!4903.50N/07201.75W>Net station");
+	run(1000u);
+
+	// the originator, with everything that was really its own
+	aprs_station_t inner;
+	CHECK(aprs_station_find("Q1ABC-9", &inner));
+	CHECK(inner.has_pos && inner.sym_table == '/' && inner.sym_code == '>');
+	CHECK(strcmp(inner.text, "Net station") == 0);
+	// shown, but never counted as heard on RF by the gating and digipeater rules
+	CHECK(inner.via_gate);
+
+	// the iGate keeps its own entry: it is the station that really transmitted, and nothing of the packet it
+	// carried belongs to it
+	aprs_station_t gate;
+	CHECK(aprs_station_find("Q1GTE", &gate));
+	CHECK(!gate.via_gate && !gate.direct);
+	CHECK(gate.text[0] == '\0');
+	CHECK(!gate.has_pos);
+
+	// The contrast case, so the two stay told apart: a frame really digipeated on RF rather than wrapped in a
+	// third-party packet. AX.25 keeps the originator in the source address and only marks the path as used, so the
+	// station is the originator, heard on RF for real (no via_gate) but not direct
+	rx_line("Q1DEF-5>APZTST,Q1GTE*,WIDE2-1:!4903.50N/07201.75W-Digipeated");
+	run(1000u);
+	aprs_station_t relayed;
+	CHECK(aprs_station_find("Q1DEF-5", &relayed));
+	CHECK(!relayed.direct && !relayed.via_gate);
+	CHECK(relayed.has_pos && relayed.sym_code == '-');
+	CHECK(strcmp(relayed.text, "Digipeated") == 0);
 #endif
 }
 
@@ -2090,6 +2140,7 @@ int main(void)
 	test_messages();
 	test_message_ends_blocked();
 	test_third_party_messages();
+	test_third_party_station();
 	test_message_options();
 	test_message_replaces_pending();
 #if CONFIG_APRS_RX

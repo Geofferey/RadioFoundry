@@ -590,7 +590,9 @@ static bool heard(const char *call, uint8_t ssid, uint32_t secs, bool direct_onl
 	x.ssid = ssid;
 	addr_text(&x, key);
 	const aprs_station_t *s = station_find(key);
-	return s != NULL && (!direct_only || s->direct) && (aprs_s.now - s->heard_ms) / 1000u < secs;
+	// via_gate: an Internet station an iGate relayed onto RF is in the list to be shown, but it was never heard on
+	// RF, so neither the gating rules nor the digipeater may treat it as a local station
+	return s != NULL && !s->via_gate && (!direct_only || s->direct) && (aprs_s.now - s->heard_ms) / 1000u < secs;
 }
 
 static bool heard_direct(const char *call, uint8_t ssid, uint32_t secs, void *ctx)
@@ -627,11 +629,13 @@ static aprs_station_t *station_touch(const char *call)
 	return s;
 }
 
-static void station_update(const ax25_frame_t *f, const aprs_parsed_t *p)
+// via_gate: this frame came out of a third-party wrapper rather than off the air (third_party_in)
+static void station_update(const ax25_frame_t *f, const aprs_parsed_t *p, bool via_gate)
 {
 	char call[AX25_CALL_LEN + 4];
 	addr_text(&f->src, call);
 	aprs_station_t *s = station_touch(call);
+	bool fresh = s->count == 0;
 	bool direct = true;
 	for (uint8_t i = 0; i < f->ndigi; i++) {
 		if (f->digi[i].h) {
@@ -642,6 +646,13 @@ static void station_update(const ax25_frame_t *f, const aprs_parsed_t *p)
 	s->direct = direct;
 	s->type = p->type;
 	s->count++;
+	// Heard on RF for real: the station is a local one from now on, however it arrived before. Otherwise only a
+	// station we have never heard on RF is marked, so a relayed copy of a local station changes nothing
+	if (!via_gate) {
+		s->via_gate = false;
+	} else if (fresh) {
+		s->via_gate = true;
+	}
 	if (p->has_pos && p->type != APRS_T_OBJECT && p->type != APRS_T_ITEM) {	// an object's position isn't its sender's
 		s->has_pos = true;
 		s->lat = p->pos.lat;
@@ -652,7 +663,10 @@ static void station_update(const ax25_frame_t *f, const aprs_parsed_t *p)
 		s->course = p->pos.course;
 		s->speed_kn = p->pos.speed_kn;
 	}
-	if (p->text != NULL && p->type != APRS_T_MESSAGE) {
+	// A third-party packet's text is the whole packet it carries ("SRC>DST,PATH:info", aprs_fmt.c), not anything
+	// the sender said: it would show as that station's comment, path and all. The carried packet is taken apart by
+	// third_party_in instead, and its own text becomes the originator's comment there.
+	if (p->text != NULL && p->type != APRS_T_MESSAGE && p->type != APRS_T_THIRD_PARTY) {
 		size_t k = p->text_len < sizeof(s->text) - 1u ? p->text_len : sizeof(s->text) - 1u;
 		memcpy(s->text, p->text, k);
 		s->text[k] = '\0';
@@ -758,19 +772,24 @@ static void message_in(const ax25_frame_t *f, const aprs_parsed_t *p)
 }
 
 // A third-party packet ("}SRC>DST,PATH:info", APRS101 chapter 17): how an iGate puts APRS-IS traffic on RF, so
-// messages from Internet stations and the acks of ours to them arrive this way. The message inside is from SRC: kept,
-// matched and acked as SRC's. Only messages are taken; the station list keeps the iGate, the station actually heard,
-// since an Internet station must not count as heard on RF for the iGate rules. One level, no nesting
+// positions, status and messages from Internet stations, and the acks of ours to them, all arrive this way. Everything
+// inside is SRC's, not the iGate's: the station list shows SRC with its own position, symbol and comment, and a
+// message is kept, matched and acked as SRC's. The iGate keeps its own entry from the frame that carried this one,
+// which is the station really heard on RF.
+//
+// SRC is marked via_gate, so it is shown but never counted as heard on RF: an Internet station must not satisfy the
+// iGate's "heard locally" rules or be digipeated for. One level, no nesting
 static void third_party_in(const ax25_frame_t *f)
 {
 	ax25_frame_t in;
 	aprs_parsed_t q;
 	if (f->info_len < 2 || !ax25_from_tnc2((const char *)f->info + 1, f->info_len - 1u, &in) || in.info_len == 0 ||
-	    ax25_addr_equal(&in.src, &aprs_s.me)) {
-		return;
+	    (aprs_s.me_ok && ax25_addr_equal(&in.src, &aprs_s.me))) {
+		return;		// unreadable, empty, or our own packet gated back to us
 	}
 	aprs_parse(&in.dst, in.info, in.info_len, &q);
-	if (q.type == APRS_T_MESSAGE) {
+	station_update(&in, &q, true);
+	if (q.type == APRS_T_MESSAGE && aprs_s.me_ok) {
 		message_in(&in, &q);
 	}
 }
@@ -794,11 +813,13 @@ void aprs_rx_frame(const uint8_t *frame, size_t n, uint32_t now_ms)
 		return;		// our own packet, digipeated back
 	}
 	aprs_parse(&f.dst, f.info, f.info_len, &p);
-	station_update(&f, &p);
+	station_update(&f, &p, false);
 	if (p.type == APRS_T_MESSAGE && aprs_s.me_ok) {
 		message_in(&f, &p);
 	}
-	if (p.type == APRS_T_THIRD_PARTY && aprs_s.me_ok) {
+	// Not behind me_ok: the station it carries is shown whether or not our own callsign is set, as any other
+	// station is. Only the message half inside needs to know who we are
+	if (p.type == APRS_T_THIRD_PARTY) {
 		third_party_in(&f);
 	}
 	if (aprs_s.cfg.igate && aprs_s.cfg.kiss && aprs_s.me_ok && CONFIG_APRS_IGATE &&

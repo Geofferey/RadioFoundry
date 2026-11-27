@@ -136,6 +136,9 @@ typedef struct {
 	char call[AX25_CALL_LEN + 4];	// with SSID
 	uint32_t heard_ms;
 	bool direct;		// heard without a digipeater
+	bool via_gate;		// only ever arrived inside a third-party packet (an iGate put it on RF), so it was never
+				// heard on RF itself: shown like any other station, but never counted by the iGate rules.
+				// Cleared for good the first time the station is heard on RF directly
 	bool has_pos;
 	int32_t lat, lon;
 	uint32_t pos_ms;	// when the position was heard (heard_ms moves on with every packet; the position only with one)
