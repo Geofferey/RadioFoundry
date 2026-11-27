@@ -161,11 +161,19 @@ Positions (plain, compressed, with and without timestamps), Mic-E (the destinati
 longitude, speed and course from the information field), objects, items, status, messages, third-party packets,
 queries, weather and telemetry recognized by type (not decoded further).
 
-Third-party packets (`}SRC>DST,PATH:info`, how an iGate puts APRS-IS traffic on RF): a message or ack inside one is
-handled as from SRC (`aprs_ax25.c`, `third_party_in`). It is kept, matched to our pending message and acked under SRC; the
-ack goes to SRC on our own path. One level only. A packet from our own call is ignored. Nothing else inside is
-decoded: the station list keeps the iGate, the station actually heard, so an Internet station never counts as heard
-on RF for the iGate rules (section 9.1).
+Third-party packets (`}SRC>DST,PATH:info`, how an iGate puts APRS-IS traffic on RF) are taken apart and everything
+inside is handled as SRC's, not the carrying iGate's (`aprs_ax25.c`, `third_party_in`). One level only. A packet from
+our own call is ignored.
+
+- A message or ack inside one is kept, matched to our pending message and acked under SRC; the ack goes to SRC on
+  our own path.
+- The station list shows SRC, with the position, symbol and comment of the packet it sent. The iGate keeps its own
+  entry from the frame that carried it, since that is the station really heard on RF, but none of the carried
+  packet becomes the iGate's position or comment: a third-party packet's text is the whole packet it carries, so
+  copying it would show that station's comment as `SRC>DST,PATH:...`.
+- SRC is marked `via_gate` in the station list. It is shown like any other station, but `heard()` never counts it,
+  so an Internet station cannot satisfy the iGate's "heard locally" rules or be digipeated for (section 9.1). The
+  mark is cleared for good the first time that station is heard on RF directly.
 
 ## 5. The radio side
 
