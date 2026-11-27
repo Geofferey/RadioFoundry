@@ -63,6 +63,8 @@ static void cfg_from_settings(const settings_t *s, aprs_cfg_t *c)
 	c->dmr_udt = (f2 & SETTINGS_APRS2_DMR_UDT) != 0;
 	c->to_is = (f2 & SETTINGS_APRS2_TO_IS) != 0;
 	c->mute = (f2 & SETTINGS_APRS2_MUTE) != 0;
+	c->ptt_send = (f2 & SETTINGS_APRS2_PTT_SEND) != 0;
+	c->ptt_send_gap_s = (uint16_t)(s->aprs_ptt_gap * APRS_PTT_GAP_UNIT_S);
 	c->region = s->aprs_region < APRS_REGION_COUNT ? s->aprs_region : APRS_REGION_NA;
 	c->ssid = s->aprs_ssid <= 15 ? s->aprs_ssid : APRS_SSID_DEFAULT;
 	c->freq_hz = s->aprs_freq_hz;
@@ -99,7 +101,10 @@ static void cfg_to_settings(const aprs_cfg_t *c, settings_t *s)
 				   (c->messaging ? SETTINGS_APRS2_MESSAGING : 0) |
 				   (c->dmr_udt ? SETTINGS_APRS2_DMR_UDT : 0) | (c->to_is ? SETTINGS_APRS2_TO_IS : 0) |
 				   (c->mute ? SETTINGS_APRS2_MUTE : 0) |
+				   (c->ptt_send ? SETTINGS_APRS2_PTT_SEND : 0) |
 				   (s->aprs_flags2 & SETTINGS_APRS2_DMR_GPS));
+	// In 5 second units, so the gaps the menu offers (up to 300 s) fit the one byte there is for them
+	s->aprs_ptt_gap = (uint8_t)(c->ptt_send_gap_s / APRS_PTT_GAP_UNIT_S);
 	s->aprs_region = c->region;
 	s->aprs_ssid = c->ssid;
 	s->aprs_freq_hz = c->freq_hz;
@@ -371,6 +376,43 @@ bool aprs_send_now(void)
 	bool ok = via_now() != APRS_VIA_RF || aprs_ax25_can_send();
 	if (ok) {
 		aprs_beacon_manual(&aprs_s.bc, aprs_s.now);
+	}
+	UNLOCK();
+	return ok;
+}
+
+// The setting is on and this is the APRS frequency. aprs_mute_hz() is not the test to use: it answers 0 unless "Mute
+// APRS audio" is on, since it exists to say which frequency the speaker keeps quiet on
+bool aprs_ptt_send_here(uint32_t rx_hz)
+{
+#if CONFIG_APRS_AFSK
+	LOCK();
+	bool here = aprs_s.cfg.ptt_send && rx_hz != 0 && rx_hz == aprs_cfg_freq(&aprs_s.cfg);
+	UNLOCK();
+	return here;
+#else
+	(void)rx_hz;	// no AX.25 backend, so no APRS frequency to be on and nothing for PTT to send there
+	return false;
+#endif
+}
+
+bool aprs_ptt_send(uint32_t now_ms)
+{
+	LOCK();
+	aprs_s.now = now_ms;
+	bool ok = aprs_s.cfg.ptt_send;
+	// The gap runs from the last packet a press sent, so holding PTT down sends one packet, not a stream
+	if (ok && aprs_s.cfg.ptt_send_gap_s != 0 && aprs_s.ptt_sent_once &&
+	    now_ms - aprs_s.ptt_send_ms < (uint32_t)aprs_s.cfg.ptt_send_gap_s * 1000u) {
+		ok = false;
+	}
+	if (ok && via_now() == APRS_VIA_RF && !aprs_ax25_can_send()) {
+		ok = false;	// the RF side is blocked (no callsign, a transmission under way)
+	}
+	if (ok) {
+		aprs_beacon_manual(&aprs_s.bc, now_ms);
+		aprs_s.ptt_send_ms = now_ms;
+		aprs_s.ptt_sent_once = true;
 	}
 	UNLOCK();
 	return ok;

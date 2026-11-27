@@ -1076,10 +1076,8 @@ static void test_third_party_messages(void)
 #endif
 }
 
-// A position gated from APRS-IS onto RF ("}SRC>DST,TCPIP*,GATE*:info"). The station list must show the originator,
-// with its own position, symbol and comment, and not the iGate that carried it; the iGate's own entry must keep no
-// part of the carried packet. Before this was handled, the originator never appeared at all, the iGate appeared in
-// its place, and the carried packet's "SRC>DST,PATH:" text became the iGate's comment
+// A position gated from APRS-IS onto RF ("}SRC>DST,TCPIP*,GATE*:info"): the station list shows the originator with
+// its own position, symbol and comment, and the iGate's entry keeps no part of the packet it carried
 static void test_third_party_station(void)
 {
 #if CONFIG_APRS_RX
@@ -1105,9 +1103,7 @@ static void test_third_party_station(void)
 	CHECK(gate.text[0] == '\0');
 	CHECK(!gate.has_pos);
 
-	// The contrast case, so the two stay told apart: a frame really digipeated on RF rather than wrapped in a
-	// third-party packet. AX.25 keeps the originator in the source address and only marks the path as used, so the
-	// station is the originator, heard on RF for real (no via_gate) but not direct
+	// Digipeated on RF rather than wrapped: the source address is already the originator, heard for real
 	rx_line("Q1DEF-5>APZTST,Q1GTE*,WIDE2-1:!4903.50N/07201.75W-Digipeated");
 	run(1000u);
 	aprs_station_t relayed;
@@ -1116,6 +1112,64 @@ static void test_third_party_station(void)
 	CHECK(relayed.has_pos && relayed.sym_code == '-');
 	CHECK(strcmp(relayed.text, "Digipeated") == 0);
 #endif
+}
+
+// APRS > Send via PTT (aprs.md 4.6): PTT on the APRS frequency sends a packet, and a press inside the gap is refused
+static void test_ptt_send(void)
+{
+	reset();
+	// A channel on the APRS frequency: what makes this an APRS channel. The radio is brought up on it first, since
+	// settings_init and radio_sm_init start the APRS settings over
+	chan.rx_hz = chan.tx_hz = APRS_HZ;
+	settings_init();
+	radio_sm_init(&sm, now);
+	aprs_set_test_call("Q1TST");
+	configure(0, false);		// a position to send, no automatic beacons
+	aprs_cfg_t c;
+	aprs_get_cfg(&c);
+	c.tx_on = false;
+	c.ptt_send = true;
+	c.ptt_send_gap_s = 30;
+	aprs_set_cfg(&c, now);
+	run(1000);
+	CHECK(hw.starts == 0);
+
+	// the key sends a packet, and the radio never goes to RS_TX for voice
+	req(RREQ_PTT, 1);
+	run(200);
+	CHECK(sm.view.state != RS_TX);
+	req(RREQ_PTT, 0);
+	CHECK(wait_start(1, 6000));
+	wait_idle();
+	aprs_view_t v;
+	aprs_get_view(&v);
+	CHECK(v.last_why == APRS_WHY_MANUAL);
+
+	// pressed again inside the gap: refused, and still nothing transmitted
+	req(RREQ_PTT, 1);
+	run(200);
+	CHECK(sm.view.state == RS_TX_DENIED && sm.view.tx_deny == TXDENY_REFUSED);
+	req(RREQ_PTT, 0);
+	run(5u * 1000u);
+	CHECK(hw.starts == 1);
+
+	// past the gap it sends again
+	run(30u * 1000u);
+	req(RREQ_PTT, 1);
+	run(200);
+	CHECK(sm.view.state != RS_TX_DENIED);
+	req(RREQ_PTT, 0);
+	CHECK(wait_start(2, 6000));
+	wait_idle();
+
+	// turned off, the same key transmits voice as it always did
+	c.ptt_send = false;
+	aprs_set_cfg(&c, now);
+	req(RREQ_PTT, 1);
+	run(200);
+	CHECK(sm.view.state == RS_TX);
+	req(RREQ_PTT, 0);
+	run(1000);
 }
 
 static void test_message_options(void)
@@ -2134,6 +2188,7 @@ int main(void)
 	test_ptt_cuts_burst();
 	test_not_amateur();
 	test_manual_and_ptt_trigger();
+	test_ptt_send();
 	test_tx_power();
 	test_tx_power_own();
 	test_host_kiss_nmea();

@@ -39,6 +39,10 @@ typedef struct {
 	uint32_t now;
 	bool dmr_due;		// a digital beacon to send (outside the lock)
 	bool reload;
+	// "Send via PTT": the last packet a press sent. Separate from aprs_beacon_t so the automatic beacons and this
+	// gap do not hold each other up
+	uint32_t ptt_send_ms;
+	bool ptt_sent_once;
 	aprs_view_t v;
 #if CONFIG_APRS_AFSK
 	// The AX.25 half (aprs_ax25.c)

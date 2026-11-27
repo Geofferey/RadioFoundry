@@ -958,6 +958,11 @@ msgid "Stations heard"
 msgstr "Stations reçues"
 
 #: core/ui/ui_aprs.c
+msgctxt "APRS_LABEL_PTT_SEND"
+msgid "Send via PTT"
+msgstr "Envoyer par PTT"
+
+#: core/ui/ui_aprs.c
 msgctxt "APRS_LABEL_MUTE"
 msgid "Mute APRS audio"
 msgstr "Couper son APRS"

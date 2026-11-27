@@ -114,6 +114,11 @@ of the usual "Last activity Xm ago".
 - On a radio that decodes only what opens the squelch ([Radio reference](23-radios.md)), a packet must be strong enough to open it. Keep the squelch at its usual level, not tight.
 - Battery saving pauses while the radio listens for APRS: a sleeping receiver misses packets.
 - Receiving is on by default. Turn it off with `tools/rfoundry_debug.py aprs set rx 0` (FM only).
+- **Send via PTT** (the APRS page, above Mute APRS audio): on the APRS frequency, pressing PTT sends your position
+  instead of transmitting your voice. Useful when the APRS frequency is a channel you can select, since it stops
+  voice going out on it by mistake. Set it to **On** to send on every press, or pick a gap (5 to 300 seconds) to
+  limit how often: a press inside the gap is refused with the usual deny tone and sends nothing. On every other
+  channel PTT works as it always does.
 - **Mute APRS audio** (the APRS page, above SSID): the speaker stays off on the APRS frequency, so packets and
   noise there aren't heard; decoding, Stations heard and the green LED go on. Hold the monitor key to listen anyway.
   Other channels play as usual.

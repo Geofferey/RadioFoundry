@@ -6963,6 +6963,16 @@ static void ptt_down(radio_sm_t *sm, uint32_t now_ms)
 		deny(sm, TXDENY_HOTSPOT);	// the host link transmits for the hotspot; PTT does nothing until it ends
 		return;
 	}
+#if CONFIG_APRS		// the same guard radio_sm.h includes aprs/aprs.h under
+	// APRS > Send via PTT: on the APRS frequency the key sends a packet, never voice (aprs.md 4.6)
+	if (sm->view.ch.mode == RADIO_MODE_FM && !sm->view.am && !sm->view.bcast && !parked(&sm->view.ch) &&
+	    aprs_ptt_send_here(sm->view.ch.rx_hz)) {
+		if (!aprs_ptt_send(now_ms)) {
+			deny(sm, TXDENY_REFUSED);	// inside the gap: the tone and LED say the key did nothing
+		}
+		return;
+	}
+#endif
 #if CONFIG_AIR_RAW
 	if (sm->air_bench) {
 		deny(sm, TXDENY_BENCH);	// the air interface bench transmits; PTT does nothing until it ends

@@ -38,8 +38,8 @@ WEAK bool ui_svc_aprs_station(uint8_t i, aprs_station_t *out) { (void)i; (void)o
 WEAK bool ui_svc_aprs_station_find(const char *call, aprs_station_t *out) { (void)call; (void)out; return false; }
 WEAK bool ui_svc_aprs_range(const aprs_station_t *s, uint32_t *m, uint16_t *deg) { (void)s; (void)m; (void)deg; return false; }
 
-enum { AP_SEND, AP_AUTO, AP_FREQ, AP_POWER, AP_PATH, AP_SSID, AP_INTERVAL, AP_SMART, AP_VIA, AP_KISS, AP_HEARD, AP_MUTE,
-       AP_COUNT };
+enum { AP_SEND, AP_AUTO, AP_FREQ, AP_POWER, AP_PATH, AP_SSID, AP_INTERVAL, AP_SMART, AP_VIA, AP_KISS, AP_HEARD,
+       AP_PTT_SEND, AP_MUTE, AP_COUNT };
 
 // The rows this build shows, in order: the packet rows (SSID too) only with the AX.25 backend (CONFIG_APRS_AFSK),
 // "Send via" only when there is a choice (both backends built)
@@ -55,6 +55,9 @@ static const uint8_t rows[] = {
 	AP_KISS,
 #if CONFIG_APRS_AFSK
 	AP_HEARD,
+#endif
+#if CONFIG_APRS_AFSK
+	AP_PTT_SEND,	// needs the APRS frequency to key on, so the AX.25 backend
 #endif
 #if CONFIG_APRS_RX
 	AP_MUTE,	// after Stations heard: the rows above keep their digits
@@ -75,6 +78,9 @@ static const uint16_t intervals[] = { 0, 60, 120, 300, 600, 1800 };
 static const tr_id_t interval_names[] = { TRN(VALUE_OFF, "Off"), TRN(VALUE_1_MIN, "1 min"), TRN(VALUE_2_MIN, "2 min"),
 	TRN(VALUE_5_MIN, "5 min"), TRN(VALUE_10_MIN, "10 min"), TRN(VALUE_30_MIN, "30 min") };
 #define N_INTERVALS	(sizeof(intervals) / sizeof(intervals[0]))
+// "Send via PTT" gaps in APRS_PTT_GAP_UNIT_S units (0 = On, every press sends): 5, 15, 30, 60, 120, 300 s
+static const uint8_t ptt_gaps[] = { 0, 1, 3, 6, 12, 24, 60 };
+#define N_PTT_GAPS	(sizeof(ptt_gaps) / sizeof(ptt_gaps[0]))
 // aprs_path_t order; the text is aprs_path_text()'s, kept here so the page builds without APRS (the simulator)
 static const tr_id_t path_names[APRS_PATH_COUNT] = { TRN(VALUE_NONE, "None"), TRX(APRS_VALUE_WIDE1_1, "WIDE1-1"),
 	TRX(APRS_VALUE_WIDE1_1_WIDE2_1, "WIDE1-1,WIDE2-1"), TRX(APRS_VALUE_WIDE2_1, "WIDE2-1"),
@@ -170,7 +176,7 @@ static void aprs_item(uint16_t i, ui_item_t *it)
 		TRN(APRS_LABEL_INTERVAL, "Interval"),
 		TRN(APRS_LABEL_SMARTBEACONING, "SmartBeaconing"), TRN(APRS_LABEL_SEND_VIA, "Send via"),
 		TRN(APRS_LABEL_KISS_ON_USB, "KISS on USB"), TRN(APRS_ROW_STATIONS_HEARD, "Stations heard"),
-		TRN(APRS_LABEL_MUTE, "Mute APRS audio") };
+		TRN(APRS_LABEL_PTT_SEND, "Send via PTT"), TRN(APRS_LABEL_MUTE, "Mute APRS audio") };
 	aprs_view_t v;
 	aprs_cfg_t c;
 	bool built = ui_svc_aprs_view(&v);
@@ -232,6 +238,17 @@ static void aprs_item(uint16_t i, ui_item_t *it)
 	case AP_VIA: sb_str(&b, tr(via_names[c.via < APRS_VIA_COUNT ? c.via : 0])); break;
 	case AP_KISS: sb_str(&b, c.kiss ? TR(VALUE_ON, "On") : TR(VALUE_OFF, "Off")); break;
 	case AP_MUTE: sb_str(&b, c.mute ? TR(VALUE_ON, "On") : TR(VALUE_OFF, "Off")); break;
+	case AP_PTT_SEND:
+		// Off, On (every press sends), then the least time between two sends
+		if (!c.ptt_send) {
+			sb_str(&b, TR(VALUE_OFF, "Off"));
+		} else if (c.ptt_send_gap_s == 0) {
+			sb_str(&b, TR(VALUE_ON, "On"));
+		} else {
+			sb_u32(&b, c.ptt_send_gap_s, 1);
+			sb_str(&b, " s");
+		}
+		break;
 	case AP_HEARD:
 		if (!CONFIG_APRS_RX) {
 			it->flags |= UI_ITEM_DIM;
@@ -298,6 +315,23 @@ static void aprs_select(uint16_t i, bool hold)
 	case AP_VIA: c.via = (uint8_t)((c.via + 1u) % APRS_VIA_COUNT); break;
 	case AP_KISS: c.kiss = !c.kiss; break;
 	case AP_MUTE: c.mute = !c.mute; break;
+	case AP_PTT_SEND: {
+		// Off, then On (no gap), then each gap in turn, then back to Off
+		uint8_t g = 0;
+		while (g < N_PTT_GAPS && ptt_gaps[g] * APRS_PTT_GAP_UNIT_S != c.ptt_send_gap_s) {
+			g++;
+		}
+		if (!c.ptt_send) {
+			c.ptt_send = true;
+			c.ptt_send_gap_s = 0;
+		} else if (g + 1u < N_PTT_GAPS) {
+			c.ptt_send_gap_s = (uint16_t)(ptt_gaps[g + 1u] * APRS_PTT_GAP_UNIT_S);
+		} else {
+			c.ptt_send = false;
+			c.ptt_send_gap_s = 0;
+		}
+		break;
+	}
 	case AP_HEARD:
 		if (!CONFIG_APRS_RX) {
 			ui_toast(TR(APRS_WHY_CANT_RECEIVE, "This radio can't receive APRS"));

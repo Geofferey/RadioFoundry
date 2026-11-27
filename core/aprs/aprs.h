@@ -32,6 +32,7 @@
 #define APRS_LEVEL_DEFAULT	50
 #define APRS_TXDELAY_DEFAULT	30		// 300 ms of flags
 #define APRS_INTERVAL_DEFAULT	600		// s, when automatic beacons are turned on without SmartBeaconing
+#define APRS_PTT_GAP_UNIT_S	5u	// "Send via PTT" gaps are stored in these units (settings.h aprs_ptt_gap)
 #define APRS_STATUS_MAX		40
 #define APRS_STATIONS		12
 #define APRS_MESSAGES		4
@@ -76,6 +77,8 @@ typedef struct {
 	bool igate_tx;		// APRS-IS -> RF
 	uint8_t digi;		// aprs_digi_mode_t
 	bool mute;		// the speaker stays off on the APRS frequency in FM; decoding goes on, Monitor plays it
+	bool ptt_send;		// on the APRS frequency PTT sends a packet instead of keying voice (aprs.md 4.6)
+	uint16_t ptt_send_gap_s;	// the least time between two of those sends, 0 = every press may send
 } aprs_cfg_t;	// where our position comes from and its ambiguity: the position service's settings (position.h)
 
 void aprs_cfg_default(aprs_cfg_t *c);
@@ -136,9 +139,8 @@ typedef struct {
 	char call[AX25_CALL_LEN + 4];	// with SSID
 	uint32_t heard_ms;
 	bool direct;		// heard without a digipeater
-	bool via_gate;		// only ever arrived inside a third-party packet (an iGate put it on RF), so it was never
-				// heard on RF itself: shown like any other station, but never counted by the iGate rules.
-				// Cleared for good the first time the station is heard on RF directly
+	bool via_gate;		// only ever arrived inside a third-party packet, so shown but never counted as heard on
+				// RF. Cleared once the station is heard directly
 	bool has_pos;
 	int32_t lat, lon;
 	uint32_t pos_ms;	// when the position was heard (heard_ms moves on with every packet; the position only with one)
@@ -220,6 +222,11 @@ void aprs_get_cfg(aprs_cfg_t *c);
 void aprs_set_cfg(const aprs_cfg_t *c, uint32_t now_ms);
 // "Send now": a position beacon at once (on the configured paths)
 bool aprs_send_now(void);
+// "Send via PTT" (aprs.md 4.6): true when PTT on this channel sends a packet rather than keying voice, asked before
+// the radio transmits
+bool aprs_ptt_send_here(uint32_t rx_hz);
+// That send. False when the gap has not passed or APRS cannot transmit; the radio then denies PTT
+bool aprs_ptt_send(uint32_t now_ms);
 // Message options. Position appends a coordinate snapshot to the text; ACK adds a message number and retries.
 #define APRS_MSG_ACK		0x01u
 #define APRS_MSG_POSITION	0x02u

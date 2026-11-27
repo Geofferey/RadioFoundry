@@ -590,8 +590,7 @@ static bool heard(const char *call, uint8_t ssid, uint32_t secs, bool direct_onl
 	x.ssid = ssid;
 	addr_text(&x, key);
 	const aprs_station_t *s = station_find(key);
-	// via_gate: an Internet station an iGate relayed onto RF is in the list to be shown, but it was never heard on
-	// RF, so neither the gating rules nor the digipeater may treat it as a local station
+	// via_gate: relayed from the Internet, so not a local station whatever the list shows
 	return s != NULL && !s->via_gate && (!direct_only || s->direct) && (aprs_s.now - s->heard_ms) / 1000u < secs;
 }
 
@@ -646,8 +645,7 @@ static void station_update(const ax25_frame_t *f, const aprs_parsed_t *p, bool v
 	s->direct = direct;
 	s->type = p->type;
 	s->count++;
-	// Heard on RF for real: the station is a local one from now on, however it arrived before. Otherwise only a
-	// station we have never heard on RF is marked, so a relayed copy of a local station changes nothing
+	// Heard on RF: local from now on. A relayed copy of a station already heard changes nothing
 	if (!via_gate) {
 		s->via_gate = false;
 	} else if (fresh) {
@@ -663,9 +661,7 @@ static void station_update(const ax25_frame_t *f, const aprs_parsed_t *p, bool v
 		s->course = p->pos.course;
 		s->speed_kn = p->pos.speed_kn;
 	}
-	// A third-party packet's text is the whole packet it carries ("SRC>DST,PATH:info", aprs_fmt.c), not anything
-	// the sender said: it would show as that station's comment, path and all. The carried packet is taken apart by
-	// third_party_in instead, and its own text becomes the originator's comment there.
+	// A third-party packet's text is the whole packet it carries, not a comment: third_party_in takes it apart
 	if (p->text != NULL && p->type != APRS_T_MESSAGE && p->type != APRS_T_THIRD_PARTY) {
 		size_t k = p->text_len < sizeof(s->text) - 1u ? p->text_len : sizeof(s->text) - 1u;
 		memcpy(s->text, p->text, k);
@@ -771,14 +767,9 @@ static void message_in(const ax25_frame_t *f, const aprs_parsed_t *p)
 	}
 }
 
-// A third-party packet ("}SRC>DST,PATH:info", APRS101 chapter 17): how an iGate puts APRS-IS traffic on RF, so
-// positions, status and messages from Internet stations, and the acks of ours to them, all arrive this way. Everything
-// inside is SRC's, not the iGate's: the station list shows SRC with its own position, symbol and comment, and a
-// message is kept, matched and acked as SRC's. The iGate keeps its own entry from the frame that carried this one,
-// which is the station really heard on RF.
-//
-// SRC is marked via_gate, so it is shown but never counted as heard on RF: an Internet station must not satisfy the
-// iGate's "heard locally" rules or be digipeated for. One level, no nesting
+// A third-party packet ("}SRC>DST,PATH:info", APRS101 chapter 17), how an iGate puts APRS-IS traffic on RF.
+// Everything inside is SRC's: the station list shows SRC, and a message is kept and acked as SRC's. SRC is marked
+// via_gate, so it is never counted as heard on RF by the iGate and digipeater rules. One level, no nesting
 static void third_party_in(const ax25_frame_t *f)
 {
 	ax25_frame_t in;

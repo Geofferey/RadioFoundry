@@ -246,7 +246,8 @@ typedef struct {
 	// SETTINGS_T3_KILLED set, no DMR at all until a factory reset
 	uint8_t t3_kill;
 	uint8_t satellite_index;	// reserved10[0]: selected TLE record; older records select the first
-	uint8_t reserved10[1];		// 0
+	uint8_t aprs_ptt_gap;		// reserved10[1]: APRS "Send via PTT" gap, in APRS_PTT_GAP_UNIT_S units; read
+					// only with SETTINGS_APRS2_PTT_SEND set
 	// Signaling tones (core/radio/sigtone.h), appended at the end so a record written before reads them as 0:
 	// per event (start of a transmission, its end, a reception's end) where it sounds in DMR and in FM (sig_out_t).
 	// 0 = the default output, as an older record reads. The event's chain of steps is only in its codeplug record
@@ -470,6 +471,7 @@ static inline void settings_set_tones_off(settings_t *s, uint8_t off)
 #define SETTINGS_APRS2_TO_IS		0x10u	// our own beacons to APRS-IS through the host helper
 #define SETTINGS_APRS2_DMR_GPS		0x20u	// our position in DMR voice calls (ETSI GPS Info LC, CONFIG_DMR_GPS)
 #define SETTINGS_APRS2_MUTE		0x40u	// the speaker stays off on the APRS frequency (decoding goes on)
+#define SETTINGS_APRS2_PTT_SEND		0x80u	// PTT on the APRS frequency sends a packet, not voice (aprs.md 4.6)
 // aprs_misc bit 7: the position service's settings are set (core/position: aprs_lat, aprs_lon, aprs_alt_m,
 // aprs_pos_src, the ambiguity and SETTINGS_APRS2_DMR_GPS). They are also taken when aprs_stored is 1
 #define SETTINGS_APRS_MISC_POSITION	0x80u
