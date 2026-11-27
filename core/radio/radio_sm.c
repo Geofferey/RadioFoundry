@@ -6963,6 +6963,19 @@ static void ptt_down(radio_sm_t *sm, uint32_t now_ms)
 		deny(sm, TXDENY_HOTSPOT);	// the host link transmits for the hotspot; PTT does nothing until it ends
 		return;
 	}
+#if CONFIG_APRS		// the same guard radio_sm.h includes aprs/aprs.h under
+	// APRS > Send via PTT: on the APRS frequency the key sends a packet instead of opening the microphone, so the
+	// frequency carries no voice. The same test as Mute APRS audio, so the two agree on what the APRS channel is;
+	// Monitor is not excluded here, since it only decides whether the speaker plays. A send refused for the
+	// setting's gap is denied like any other PTT, tone and all, and nothing is transmitted either way
+	if (sm->view.ch.mode == RADIO_MODE_FM && !sm->view.am && !sm->view.bcast && !parked(&sm->view.ch) &&
+	    aprs_ptt_send_here(sm->view.ch.rx_hz)) {
+		if (!aprs_ptt_send(now_ms)) {
+			deny(sm, TXDENY_APRS_GAP);
+		}
+		return;		// either way the microphone never opens and nothing keys for voice
+	}
+#endif
 #if CONFIG_AIR_RAW
 	if (sm->air_bench) {
 		deny(sm, TXDENY_BENCH);	// the air interface bench transmits; PTT does nothing until it ends

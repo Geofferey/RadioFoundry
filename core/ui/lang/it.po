@@ -958,6 +958,11 @@ msgid "Stations heard"
 msgstr "Stazioni sentite"
 
 #: core/ui/ui_aprs.c
+msgctxt "APRS_LABEL_PTT_SEND"
+msgid "Send via PTT"
+msgstr "Invia con PTT"
+
+#: core/ui/ui_aprs.c
 msgctxt "APRS_LABEL_MUTE"
 msgid "Mute APRS audio"
 msgstr "Silenzia APRS"
@@ -4928,6 +4933,11 @@ msgid "Radio refused to send"
 msgstr "La radio ha rifiutato di trasmettere"
 
 #: core/ui/ui_screens.c
+msgctxt "DENY_WHY_APRS_GAP"
+msgid "APRS sent too recently"
+msgstr "APRS inviato da poco"
+
+#: core/ui/ui_screens.c
 msgctxt "DENY_WHY_AIR_BENCH"
 msgid "Air bench: PTT off"
 msgstr "Banco aria: PTT off"
@@ -5051,6 +5061,11 @@ msgstr "Sintonizza fuori banda"
 msgctxt "DENY_FIX_PICK_USER_CHANNEL"
 msgid "Pick a user channel to talk"
 msgstr "Scegli un canale utente per parlare"
+
+#: core/ui/ui_screens.c
+msgctxt "DENY_FIX_APRS_GAP"
+msgid "Wait for the Send via PTT interval"
+msgstr "Attendi l'intervallo Invia con PTT"
 
 #: core/ui/ui_screens.c
 msgctxt "DENY_FIX_END_BENCH_ON_PC"

@@ -1118,6 +1118,65 @@ static void test_third_party_station(void)
 #endif
 }
 
+// APRS > Send via PTT (docs/spec/aprs.md 4.6): on the APRS frequency PTT sends a packet instead of keying voice, and
+// a press inside the setting's gap is refused like any other PTT, with nothing transmitted
+static void test_ptt_send(void)
+{
+	reset();
+	// A channel on the APRS frequency: what makes this an APRS channel. The radio is brought up on it first, since
+	// settings_init and radio_sm_init start the APRS settings over
+	chan.rx_hz = chan.tx_hz = APRS_HZ;
+	settings_init();
+	radio_sm_init(&sm, now);
+	aprs_set_test_call("Q1TST");
+	configure(0, false);		// a position to send, no automatic beacons
+	aprs_cfg_t c;
+	aprs_get_cfg(&c);
+	c.tx_on = false;
+	c.ptt_send = true;
+	c.ptt_send_gap_s = 30;
+	aprs_set_cfg(&c, now);
+	run(1000);
+	CHECK(hw.starts == 0);
+
+	// the key sends a packet, and the radio never goes to RS_TX for voice
+	req(RREQ_PTT, 1);
+	run(200);
+	CHECK(sm.view.state != RS_TX);
+	req(RREQ_PTT, 0);
+	CHECK(wait_start(1, 6000));
+	wait_idle();
+	aprs_view_t v;
+	aprs_get_view(&v);
+	CHECK(v.last_why == APRS_WHY_MANUAL);
+
+	// pressed again inside the gap: refused, and still nothing transmitted
+	req(RREQ_PTT, 1);
+	run(200);
+	CHECK(sm.view.state == RS_TX_DENIED && sm.view.tx_deny == TXDENY_APRS_GAP);
+	req(RREQ_PTT, 0);
+	run(5u * 1000u);
+	CHECK(hw.starts == 1);
+
+	// past the gap it sends again
+	run(30u * 1000u);
+	req(RREQ_PTT, 1);
+	run(200);
+	CHECK(sm.view.state != RS_TX_DENIED);
+	req(RREQ_PTT, 0);
+	CHECK(wait_start(2, 6000));
+	wait_idle();
+
+	// turned off, the same key transmits voice as it always did
+	c.ptt_send = false;
+	aprs_set_cfg(&c, now);
+	req(RREQ_PTT, 1);
+	run(200);
+	CHECK(sm.view.state == RS_TX);
+	req(RREQ_PTT, 0);
+	run(1000);
+}
+
 static void test_message_options(void)
 {
 	reset();
@@ -2134,6 +2193,7 @@ int main(void)
 	test_ptt_cuts_burst();
 	test_not_amateur();
 	test_manual_and_ptt_trigger();
+	test_ptt_send();
 	test_tx_power();
 	test_tx_power_own();
 	test_host_kiss_nmea();

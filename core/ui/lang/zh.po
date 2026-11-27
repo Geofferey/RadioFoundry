@@ -960,6 +960,11 @@ msgid "Stations heard"
 msgstr "收到的台站"
 
 #: core/ui/ui_aprs.c
+msgctxt "APRS_LABEL_PTT_SEND"
+msgid "Send via PTT"
+msgstr "PTT 发送"
+
+#: core/ui/ui_aprs.c
 msgctxt "APRS_LABEL_MUTE"
 msgid "Mute APRS audio"
 msgstr "APRS静音"
@@ -4930,6 +4935,11 @@ msgid "Radio refused to send"
 msgstr "电台拒绝发射"
 
 #: core/ui/ui_screens.c
+msgctxt "DENY_WHY_APRS_GAP"
+msgid "APRS sent too recently"
+msgstr "APRS 最近已发送"
+
+#: core/ui/ui_screens.c
 msgctxt "DENY_WHY_AIR_BENCH"
 msgid "Air bench: PTT off"
 msgstr "空口测试台：PTT 关闭"
@@ -5053,6 +5063,11 @@ msgstr "请调离该频段"
 msgctxt "DENY_FIX_PICK_USER_CHANNEL"
 msgid "Pick a user channel to talk"
 msgstr "请选用户信道通话"
+
+#: core/ui/ui_screens.c
+msgctxt "DENY_FIX_APRS_GAP"
+msgid "Wait for the Send via PTT interval"
+msgstr "请等待 PTT 发送间隔"
 
 #: core/ui/ui_screens.c
 msgctxt "DENY_FIX_END_BENCH_ON_PC"

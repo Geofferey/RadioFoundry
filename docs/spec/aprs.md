@@ -175,6 +175,32 @@ our own call is ignored.
   so an Internet station cannot satisfy the iGate's "heard locally" rules or be digipeated for (section 9.1). The
   mark is cleared for good the first time that station is heard on RF directly.
 
+### 4.6 Send via PTT
+
+**Send via PTT** (`aprs_cfg_t.ptt_send`, the APRS page's row above "Mute APRS audio") turns the key into the send
+button on the APRS frequency: pressing PTT there sends a position packet and never opens the microphone, so voice
+cannot go out on a data channel by accident. Off by default.
+
+The channel has to be the APRS frequency in FM, not parked, not the air band and not broadcast; `aprs_ptt_send_here()`
+answers that, since which frequency counts as APRS is the APRS settings' business, not the radio state machine's.
+(`aprs_mute_hz()` is not that test: it answers 0 unless "Mute APRS audio" is on, because it exists to say where the
+speaker stays quiet.) On any other channel PTT transmits as it always did, whatever this setting says.
+
+The setting's values are Off, On, and then a gap: 5, 15, 30, 60, 120 or 300 seconds (`ptt_gaps` in `ui_aprs.c`, the
+menu's own list as for the beacon interval). On means every
+press may send. A gap is the least time between two packets PTT sent, counted from the last one that went out, so
+holding the key down or pressing it again inside the gap sends nothing. Automatic and after-PTT beacons keep their own
+timing (`aprs_beacon_t`): a press is never refused because an automatic beacon has just gone out, and a press never
+stops the next one being due.
+
+A press that cannot send - the gap has not passed, or the RF side is blocked - is refused the way any other PTT is
+refused, with the deny tone and `TXDENY_APRS_GAP` on the screen. Nothing is transmitted either way.
+
+The settings store keeps the switch as `SETTINGS_APRS2_PTT_SEND` and the gap in `settings_t.aprs_ptt_gap`, in units
+of `APRS_PTT_GAP_UNIT_S` (5 s) so that every gap the menu offers fits the one byte there is for it. The core holds
+the gap in seconds (`aprs_cfg_t.ptt_send_gap_s`) and never sees the menu's list, so the offered values can change
+without touching what a saved record means.
+
 ## 5. The radio side
 
 ### 5.1 hal_afsk

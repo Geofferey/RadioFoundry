@@ -1417,6 +1417,7 @@ const char *ui_deny_text(const radio_view_t *v, uint8_t why, char *buf, size_t l
 	case TXDENY_SFR_RPT: sb_str(&b, TR(DENY_WHY_REPEATER_CHANNEL, "Repeater channel: PTT off")); break;
 	case TXDENY_HWOPT: hwopt_needed(&b); break;
 	case TXDENY_REFUSED: sb_str(&b, TR(DENY_WHY_RADIO_REFUSED, "Radio refused to send")); break;
+	case TXDENY_APRS_GAP: sb_str(&b, TR(DENY_WHY_APRS_GAP, "APRS sent too recently")); break;
 	case TXDENY_BENCH: sb_str(&b, TR(DENY_WHY_AIR_BENCH, "Air bench: PTT off")); break;
 	case TXDENY_AIR_NO_TX: sb_str(&b, TR(DENY_WHY_AIR_NO_TX, "This mode: receive only")); break;
 	case TXDENY_NOT_DMR: sb_str(&b, TR(SHARE_BANNER_TRY_ON_DMR, "Try again on a DMR channel")); break;
@@ -1471,6 +1472,7 @@ static const char *deny_action(const radio_view_t *v)
 	case TXDENY_SFR_RPT: return TR(DENY_FIX_PICK_USER_CHANNEL, "Pick a user channel to talk");
 	case TXDENY_HWOPT: return hwopt_action();
 	case TXDENY_REFUSED: return TR(DENY_FIX_RELEASE_AND_RETRY, "Release PTT, try again");
+	case TXDENY_APRS_GAP: return TR(DENY_FIX_APRS_GAP, "Wait for the Send via PTT interval");
 	case TXDENY_BENCH: return TR(DENY_FIX_END_BENCH_ON_PC, "End the bench on the PC");
 #if CONFIG_P25_TRUNK || CONFIG_DMR_TRUNK
 	case TXDENY_TRUNK:
