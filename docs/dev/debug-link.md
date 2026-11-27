@@ -34,7 +34,7 @@ there are several. `rfoundry_debug.py --help` and the module docstring list ever
 |---|---|
 | `rfoundry_debug.py version` | Firmware version, board, feature switches |
 | `rfoundry_debug.py diag --watch 1` | Radio summary, voice path and board counters, with rates, once a second |
-| `rfoundry_debug.py view --section radio` | The radio state as key=value (`--json` for scripts) |
+| `rfoundry_debug.py view --section core` | The radio state as key=value (`--json` for scripts); `--section` takes any of the sections `--help` lists |
 | `rfoundry_debug.py screenshot -o shot.png --scale 3` | The display as PNG |
 | `rfoundry_debug.py key ok`, `key quick --long`, `key enc --steps 2` | Inject a key press, a hold, encoder steps |
 | `rfoundry_debug.py ptt --seconds 3` | Key PTT for at most 10 s (the firmware times out too) |
