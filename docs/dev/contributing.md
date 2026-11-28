@@ -111,7 +111,9 @@ the project lead, never in public CI).
 - A fact about a radio that the build doesn't need goes in its `board.toml`, once ([The board registry](board-registry.md)).
   Tools, tests and docs read the boards from the registry; none keeps a list of radios.
 - C11 (gnu11) with `-Wall -Wextra -Wshadow -Wdouble-promotion`. Zero warnings in every configuration.
-- Follow the style of the file you edit. Comments say why, not what.
+- Follow the style of the file you edit. Comments say why, not what, in as few words as that takes.
+- Comments describe the code as it is now. What it used to do, what was tried instead and why another way was
+  rejected go in the commit message, not above the code.
 - Keep RTOS calls and blocking waits out of the UI's behavior code and the protocol engines, so the host tests can run them.
 - Read the section of [gotchas.md](../spec/gotchas.md) for the subsystem you change.
 - One way to do a thing. When the firmware already has a service for a job, use it or extend it: the web control
