@@ -112,8 +112,10 @@ the project lead, never in public CI).
   Tools, tests and docs read the boards from the registry; none keeps a list of radios.
 - C11 (gnu11) with `-Wall -Wextra -Wshadow -Wdouble-promotion`. Zero warnings in every configuration.
 - Follow the style of the file you edit. Comments say why, not what, in as few words as that takes.
-- Comments describe the code as it is now. What it used to do, what was tried instead and why another way was
-  rejected go in the commit message, not above the code.
+- Comments written within code describe the code as it is now, not what it used to do. Historical information
+  belongs in the commit message or the pull request.
+- Document a feature as it is. Don't oversaturate the docs with how it used to work, what was tried instead, or
+  why another way was rejected.
 - Keep RTOS calls and blocking waits out of the UI's behavior code and the protocol engines, so the host tests can run them.
 - Read the section of [gotchas.md](../spec/gotchas.md) for the subsystem you change.
 - One way to do a thing. When the firmware already has a service for a job, use it or extend it: the web control
