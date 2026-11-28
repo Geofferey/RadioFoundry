@@ -1076,10 +1076,8 @@ static void test_third_party_messages(void)
 #endif
 }
 
-// A position gated from APRS-IS onto RF ("}SRC>DST,TCPIP*,GATE*:info"). The station list must show the originator,
-// with its own position, symbol and comment, and not the iGate that carried it; the iGate's own entry must keep no
-// part of the carried packet. Before this was handled, the originator never appeared at all, the iGate appeared in
-// its place, and the carried packet's "SRC>DST,PATH:" text became the iGate's comment
+// A position gated from APRS-IS onto RF ("}SRC>DST,TCPIP*,GATE*:info"): the station list shows the originator with
+// its own position, symbol and comment, and the iGate's entry keeps no part of the packet it carried
 static void test_third_party_station(void)
 {
 #if CONFIG_APRS_RX
@@ -1105,9 +1103,7 @@ static void test_third_party_station(void)
 	CHECK(gate.text[0] == '\0');
 	CHECK(!gate.has_pos);
 
-	// The contrast case, so the two stay told apart: a frame really digipeated on RF rather than wrapped in a
-	// third-party packet. AX.25 keeps the originator in the source address and only marks the path as used, so the
-	// station is the originator, heard on RF for real (no via_gate) but not direct
+	// Digipeated on RF rather than wrapped: the source address is already the originator, heard for real
 	rx_line("Q1DEF-5>APZTST,Q1GTE*,WIDE2-1:!4903.50N/07201.75W-Digipeated");
 	run(1000u);
 	aprs_station_t relayed;
@@ -1118,8 +1114,7 @@ static void test_third_party_station(void)
 #endif
 }
 
-// APRS > Send via PTT (docs/spec/aprs.md 4.6): on the APRS frequency PTT sends a packet instead of keying voice, and
-// a press inside the setting's gap is refused like any other PTT, with nothing transmitted
+// APRS > Send via PTT (aprs.md 4.6): PTT on the APRS frequency sends a packet, and a press inside the gap is refused
 static void test_ptt_send(void)
 {
 	reset();
@@ -1153,7 +1148,7 @@ static void test_ptt_send(void)
 	// pressed again inside the gap: refused, and still nothing transmitted
 	req(RREQ_PTT, 1);
 	run(200);
-	CHECK(sm.view.state == RS_TX_DENIED && sm.view.tx_deny == TXDENY_APRS_GAP);
+	CHECK(sm.view.state == RS_TX_DENIED && sm.view.tx_deny == TXDENY_REFUSED);
 	req(RREQ_PTT, 0);
 	run(5u * 1000u);
 	CHECK(hw.starts == 1);

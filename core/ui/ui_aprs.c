@@ -78,9 +78,8 @@ static const uint16_t intervals[] = { 0, 60, 120, 300, 600, 1800 };
 static const tr_id_t interval_names[] = { TRN(VALUE_OFF, "Off"), TRN(VALUE_1_MIN, "1 min"), TRN(VALUE_2_MIN, "2 min"),
 	TRN(VALUE_5_MIN, "5 min"), TRN(VALUE_10_MIN, "10 min"), TRN(VALUE_30_MIN, "30 min") };
 #define N_INTERVALS	(sizeof(intervals) / sizeof(intervals[0]))
-// "Send via PTT" (aprs.md 4.6): the least time between two packets PTT sends. The first is "On", every press may
-// send. Seconds, all multiples of APRS_PTT_GAP_UNIT_S so the settings store's one byte holds any of them
-static const uint16_t ptt_gaps[] = { 0, 5, 15, 30, 60, 120, 300 };
+// "Send via PTT" gaps in APRS_PTT_GAP_UNIT_S units (0 = On, every press sends): 5, 15, 30, 60, 120, 300 s
+static const uint8_t ptt_gaps[] = { 0, 1, 3, 6, 12, 24, 60 };
 #define N_PTT_GAPS	(sizeof(ptt_gaps) / sizeof(ptt_gaps[0]))
 // aprs_path_t order; the text is aprs_path_text()'s, kept here so the page builds without APRS (the simulator)
 static const tr_id_t path_names[APRS_PATH_COUNT] = { TRN(VALUE_NONE, "None"), TRX(APRS_VALUE_WIDE1_1, "WIDE1-1"),
@@ -319,14 +318,14 @@ static void aprs_select(uint16_t i, bool hold)
 	case AP_PTT_SEND: {
 		// Off, then On (no gap), then each gap in turn, then back to Off
 		uint8_t g = 0;
-		while (g < N_PTT_GAPS && ptt_gaps[g] != c.ptt_send_gap_s) {
+		while (g < N_PTT_GAPS && ptt_gaps[g] * APRS_PTT_GAP_UNIT_S != c.ptt_send_gap_s) {
 			g++;
 		}
 		if (!c.ptt_send) {
 			c.ptt_send = true;
-			c.ptt_send_gap_s = ptt_gaps[0];
+			c.ptt_send_gap_s = 0;
 		} else if (g + 1u < N_PTT_GAPS) {
-			c.ptt_send_gap_s = ptt_gaps[g + 1u];
+			c.ptt_send_gap_s = (uint16_t)(ptt_gaps[g + 1u] * APRS_PTT_GAP_UNIT_S);
 		} else {
 			c.ptt_send = false;
 			c.ptt_send_gap_s = 0;

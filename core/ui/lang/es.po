@@ -4933,11 +4933,6 @@ msgid "Radio refused to send"
 msgstr "La radio no quiso transmitir"
 
 #: core/ui/ui_screens.c
-msgctxt "DENY_WHY_APRS_GAP"
-msgid "APRS sent too recently"
-msgstr "APRS enviado hace poco"
-
-#: core/ui/ui_screens.c
 msgctxt "DENY_WHY_AIR_BENCH"
 msgid "Air bench: PTT off"
 msgstr "Banco de aire: sin PTT"
@@ -5061,11 +5056,6 @@ msgstr "Sal de la banda"
 msgctxt "DENY_FIX_PICK_USER_CHANNEL"
 msgid "Pick a user channel to talk"
 msgstr "Elige un canal de usuario"
-
-#: core/ui/ui_screens.c
-msgctxt "DENY_FIX_APRS_GAP"
-msgid "Wait for the Send via PTT interval"
-msgstr "Espera el intervalo de Enviar con PTT"
 
 #: core/ui/ui_screens.c
 msgctxt "DENY_FIX_END_BENCH_ON_PC"

@@ -6964,16 +6964,13 @@ static void ptt_down(radio_sm_t *sm, uint32_t now_ms)
 		return;
 	}
 #if CONFIG_APRS		// the same guard radio_sm.h includes aprs/aprs.h under
-	// APRS > Send via PTT: on the APRS frequency the key sends a packet instead of opening the microphone, so the
-	// frequency carries no voice. The same test as Mute APRS audio, so the two agree on what the APRS channel is;
-	// Monitor is not excluded here, since it only decides whether the speaker plays. A send refused for the
-	// setting's gap is denied like any other PTT, tone and all, and nothing is transmitted either way
+	// APRS > Send via PTT: on the APRS frequency the key sends a packet, never voice (aprs.md 4.6)
 	if (sm->view.ch.mode == RADIO_MODE_FM && !sm->view.am && !sm->view.bcast && !parked(&sm->view.ch) &&
 	    aprs_ptt_send_here(sm->view.ch.rx_hz)) {
 		if (!aprs_ptt_send(now_ms)) {
-			deny(sm, TXDENY_APRS_GAP);
+			deny(sm, TXDENY_REFUSED);	// inside the gap: the tone and LED say the key did nothing
 		}
-		return;		// either way the microphone never opens and nothing keys for voice
+		return;
 	}
 #endif
 #if CONFIG_AIR_RAW

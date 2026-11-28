@@ -32,10 +32,7 @@
 #define APRS_LEVEL_DEFAULT	50
 #define APRS_TXDELAY_DEFAULT	30		// 300 ms of flags
 #define APRS_INTERVAL_DEFAULT	600		// s, when automatic beacons are turned on without SmartBeaconing
-// "Send via PTT" (aprs.md 4.6): the gap is kept in seconds in aprs_cfg_t, and which gaps the setting offers is the
-// menu's business (ui_aprs.c), as it is for the beacon interval. The settings store keeps it in 5 second units
-// (settings.h aprs_ptt_gap), so every gap up to 1275 s fits one byte
-#define APRS_PTT_GAP_UNIT_S	5u
+#define APRS_PTT_GAP_UNIT_S	5u	// "Send via PTT" gaps are stored in these units (settings.h aprs_ptt_gap)
 #define APRS_STATUS_MAX		40
 #define APRS_STATIONS		12
 #define APRS_MESSAGES		4
@@ -142,9 +139,8 @@ typedef struct {
 	char call[AX25_CALL_LEN + 4];	// with SSID
 	uint32_t heard_ms;
 	bool direct;		// heard without a digipeater
-	bool via_gate;		// only ever arrived inside a third-party packet (an iGate put it on RF), so it was never
-				// heard on RF itself: shown like any other station, but never counted by the iGate rules.
-				// Cleared for good the first time the station is heard on RF directly
+	bool via_gate;		// only ever arrived inside a third-party packet, so shown but never counted as heard on
+				// RF. Cleared once the station is heard directly
 	bool has_pos;
 	int32_t lat, lon;
 	uint32_t pos_ms;	// when the position was heard (heard_ms moves on with every packet; the position only with one)
@@ -226,13 +222,10 @@ void aprs_get_cfg(aprs_cfg_t *c);
 void aprs_set_cfg(const aprs_cfg_t *c, uint32_t now_ms);
 // "Send now": a position beacon at once (on the configured paths)
 bool aprs_send_now(void);
-// "Send via PTT" (aprs.md 4.6). On the APRS frequency PTT sends a packet instead of keying voice. The radio asks
-// aprs_ptt_send_here() with the channel it is on, before it transmits, so voice is refused rather than cut short;
-// which frequency counts as APRS stays APRS's business. aprs_ptt_send() then makes that send and returns false when
-// the setting's gap has not passed yet or APRS cannot transmit, which the radio denies as it denies any other PTT.
-// Both live in aprs.c, built whenever APRS is, so they take no stub for a build without the AX.25 backend: without
-// one there is no APRS frequency to be on and aprs_ptt_send_here() simply answers false
+// "Send via PTT" (aprs.md 4.6): true when PTT on this channel sends a packet rather than keying voice, asked before
+// the radio transmits
 bool aprs_ptt_send_here(uint32_t rx_hz);
+// That send. False when the gap has not passed or APRS cannot transmit; the radio then denies PTT
 bool aprs_ptt_send(uint32_t now_ms);
 // Message options. Position appends a coordinate snapshot to the text; ACK adds a message number and retries.
 #define APRS_MSG_ACK		0x01u

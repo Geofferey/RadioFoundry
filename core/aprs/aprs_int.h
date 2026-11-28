@@ -39,9 +39,8 @@ typedef struct {
 	uint32_t now;
 	bool dmr_due;		// a digital beacon to send (outside the lock)
 	bool reload;
-	// "Send via PTT" (aprs.md 4.6): when the last packet PTT sent went out, to hold the setting's gap. Kept here
-	// rather than in aprs_beacon_t, which times the automatic and after-PTT beacons: a press must not be refused
-	// because an automatic beacon has just gone, nor stop the next one being due
+	// "Send via PTT": the last packet a press sent. Separate from aprs_beacon_t so the automatic beacons and this
+	// gap do not hold each other up
 	uint32_t ptt_send_ms;
 	bool ptt_sent_once;
 	aprs_view_t v;

@@ -1082,8 +1082,7 @@ static const flow_t flows[] = {
 	{ "G GPS signal page", "ok 6 2", "3", "shows=9_of_14_in_the_fix", 1, false },
 	{ "G GPS grid page", "ok 6 2", "4", "shows=FN42li", 1, false },
 	{ "G GPS pages wrap", "ok 6 2", "up down", "shows=Status", 2, false },
-	// The rows past the tenth have no digit of their own (ui_aprs.c), so these reach them by wrapping up from the
-	// top: one more "up" for every row added below Stations heard
+	// Rows past the tenth have no digit (ui_aprs.c), so these wrap up from the top to reach them
 	{ "A KISS on USB", "ok 6 8", "up up up up up ok", "aprs_kiss=1", 6, false },
 	// SSID: the last row (set once); OK steps up and wraps, a long OK steps back
 	{ "A SSID shows the default", "ok 6 8", "up", "focus=SSID shows=7 aprs_ssid=7", 1, false },

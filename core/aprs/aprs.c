@@ -401,8 +401,7 @@ bool aprs_ptt_send(uint32_t now_ms)
 	LOCK();
 	aprs_s.now = now_ms;
 	bool ok = aprs_s.cfg.ptt_send;
-	// The gap is counted from the last packet a press sent, so holding PTT down or pressing it again inside the gap
-	// sends nothing. A first press after a restart always may: ptt_sent_once is false
+	// The gap runs from the last packet a press sent, so holding PTT down sends one packet, not a stream
 	if (ok && aprs_s.cfg.ptt_send_gap_s != 0 && aprs_s.ptt_sent_once &&
 	    now_ms - aprs_s.ptt_send_ms < (uint32_t)aprs_s.cfg.ptt_send_gap_s * 1000u) {
 		ok = false;
