@@ -116,6 +116,9 @@ the project lead, never in public CI).
   belongs in the commit message or the pull request.
 - Document a feature as it is. Don't oversaturate the docs with how it used to work, what was tried instead, or
   why another way was rejected.
+- Changing behavior overwrites what was written about it. Replace the statement that is now wrong, in place; don't
+  leave the old one beside the new and don't append a correction. An assumption that turned out wrong is deleted,
+  not annotated.
 - Keep RTOS calls and blocking waits out of the UI's behavior code and the protocol engines, so the host tests can run them.
 - Read the section of [gotchas.md](../spec/gotchas.md) for the subsystem you change.
 - One way to do a thing. When the firmware already has a service for a job, use it or extend it: the web control
