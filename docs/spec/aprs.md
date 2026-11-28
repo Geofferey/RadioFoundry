@@ -168,41 +168,31 @@ our own call is ignored.
 - A message or ack inside one is kept, matched to our pending message and acked under SRC; the ack goes to SRC on
   our own path.
 - The station list shows SRC, with the position, symbol and comment of the packet it sent. The iGate keeps its own
-  entry from the frame that carried it, since that is the station really heard on RF, but none of the carried
-  packet becomes the iGate's position or comment: a third-party packet's text is the whole packet it carries, so
-  copying it would show that station's comment as `SRC>DST,PATH:...`.
+  entry from the frame that carried it, since that is the station heard on RF, and takes no position or comment
+  from the packet inside.
 - SRC is marked `via_gate` in the station list. It is shown like any other station, but `heard()` never counts it,
   so an Internet station cannot satisfy the iGate's "heard locally" rules or be digipeated for (section 9.1). The
   mark is cleared for good the first time that station is heard on RF directly.
 
 ### 4.6 Send via PTT
 
-**Send via PTT** (`aprs_cfg_t.ptt_send`, the APRS page's row above "Mute APRS audio") turns the key into the send
-button on the APRS frequency: pressing PTT there sends a position packet and never opens the microphone, so voice
-cannot go out on a data channel by accident. Off by default.
+**Send via PTT** (`aprs_cfg_t.ptt_send`, the APRS page's row above "Mute APRS audio") makes the key send a position
+packet on the APRS frequency instead of opening the microphone. Off by default; on any other channel PTT transmits
+voice as usual.
 
-The channel has to be the APRS frequency in FM, not parked, not the air band and not broadcast; `aprs_ptt_send_here()`
-answers that, since which frequency counts as APRS is the APRS settings' business, not the radio state machine's.
-(`aprs_mute_hz()` is not that test: it answers 0 unless "Mute APRS audio" is on, because it exists to say where the
-speaker stays quiet.) On any other channel PTT transmits as it always did, whatever this setting says.
+`aprs_ptt_send_here()` decides the channel qualifies: FM, on the APRS frequency, not parked, not the air band and not
+broadcast.
 
-The setting's values are Off, On, and then a gap: 5, 15, 30, 60, 120 or 300 seconds (`ptt_gaps` in `ui_aprs.c`, the
-menu's own list as for the beacon interval, held in `APRS_PTT_GAP_UNIT_S` units so it fits a byte each). On means
-every
-press may send. A gap is the least time between two packets PTT sent, counted from the last one that went out, so
-holding the key down or pressing it again inside the gap sends nothing. Automatic and after-PTT beacons keep their own
-timing (`aprs_beacon_t`): a press is never refused because an automatic beacon has just gone out, and a press never
-stops the next one being due.
+The values are Off, On, and a gap of 5, 15, 30, 60, 120 or 300 seconds (`ptt_gaps` in `ui_aprs.c`, the menu's list as
+for the beacon interval). On sends on every press. A gap is the least time between two packets PTT sent, measured
+from the last one that went out, so holding the key down or pressing again inside the gap sends nothing. Automatic
+and after-PTT beacons keep their own timing (`aprs_beacon_t`) and neither holds the other up.
 
-A press that cannot send - the gap has not passed, or the RF side is blocked - is refused the way any other PTT is
-refused, as `TXDENY_REFUSED`: the deny tone and the LED. Nothing is transmitted either way. There is no reason of its
-own for it, because the tone and the LED already tell whoever set the interval that the key did nothing, and a reason
-costs a string in the firmware and in every catalog.
+A press that cannot send, because the gap has not passed or the RF side is blocked, is refused as `TXDENY_REFUSED`:
+the deny tone and the LED, nothing transmitted.
 
-The settings store keeps the switch as `SETTINGS_APRS2_PTT_SEND` and the gap in `settings_t.aprs_ptt_gap`, in units
-of `APRS_PTT_GAP_UNIT_S` (5 s) so that every gap the menu offers fits the one byte there is for it. The core holds
-the gap in seconds (`aprs_cfg_t.ptt_send_gap_s`) and never sees the menu's list, so the offered values can change
-without touching what a saved record means.
+The settings store keeps the switch as `SETTINGS_APRS2_PTT_SEND` and the gap in `settings_t.aprs_ptt_gap`, in
+`APRS_PTT_GAP_UNIT_S` (5 s) units. The core holds the gap in seconds (`aprs_cfg_t.ptt_send_gap_s`).
 
 ## 5. The radio side
 
