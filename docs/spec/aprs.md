@@ -187,14 +187,17 @@ answers that, since which frequency counts as APRS is the APRS settings' busines
 speaker stays quiet.) On any other channel PTT transmits as it always did, whatever this setting says.
 
 The setting's values are Off, On, and then a gap: 5, 15, 30, 60, 120 or 300 seconds (`ptt_gaps` in `ui_aprs.c`, the
-menu's own list as for the beacon interval). On means every
+menu's own list as for the beacon interval, held in `APRS_PTT_GAP_UNIT_S` units so it fits a byte each). On means
+every
 press may send. A gap is the least time between two packets PTT sent, counted from the last one that went out, so
 holding the key down or pressing it again inside the gap sends nothing. Automatic and after-PTT beacons keep their own
 timing (`aprs_beacon_t`): a press is never refused because an automatic beacon has just gone out, and a press never
 stops the next one being due.
 
 A press that cannot send - the gap has not passed, or the RF side is blocked - is refused the way any other PTT is
-refused, with the deny tone and `TXDENY_APRS_GAP` on the screen. Nothing is transmitted either way.
+refused, as `TXDENY_REFUSED`: the deny tone and the LED. Nothing is transmitted either way. There is no reason of its
+own for it, because the tone and the LED already tell whoever set the interval that the key did nothing, and a reason
+costs a string in the firmware and in every catalog.
 
 The settings store keeps the switch as `SETTINGS_APRS2_PTT_SEND` and the gap in `settings_t.aprs_ptt_gap`, in units
 of `APRS_PTT_GAP_UNIT_S` (5 s) so that every gap the menu offers fits the one byte there is for it. The core holds
