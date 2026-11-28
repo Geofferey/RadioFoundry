@@ -99,7 +99,11 @@ The source tree is in [README.md, Layout](README.md#layout). The layers and the 
   definition sits in, and the build fails only with one switch off. After touching guarded code, build each switch you
   touched off: `make BOARD=<b> CONFIG_X=n BUILD=build/t-x` (its sub-features follow it, as in `tools/ci.sh`), or
   `tools/ci.sh --board <b> --matrix --steps firmware` for all of them. Remove the `build/t-*` trees afterwards.
-- Match the file you're editing: tabs, naming, comment density. Comments say why.
+- Match the file you're editing: tabs, naming, comment density. Comments say why, in as few words as that takes.
+- **Comments describe the code as it is now.** Not what it used to do, not what was tried instead, not why another
+  way was rejected: that belongs in the commit message. A comment that restates the code is noise, and a paragraph
+  over a two-line block means the explanation belongs in the commit message or in `docs/spec/`. Keep the one-line
+  why where the code alone would mislead.
 - Keep RTOS calls and blocking waits out of protocol engines and UI behavior code, so the host tests can run them.
 - **Languages.** The radio and the site are translated ([docs/dev/translating.md](docs/dev/translating.md)). Mark text
   a user reads with a key and its English, `TR(KEY, "English")` (`TRN(KEY, ...)` in a static table or struct field,
