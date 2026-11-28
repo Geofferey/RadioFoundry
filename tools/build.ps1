@@ -15,6 +15,8 @@
 #   tools\build.ps1 dm32 size            a make target instead of the image (size, clean, print-config, ...)
 #   tools\build.ps1 dm32 CONFIG_GPS=n    a feature switch off, or any other make variable
 #   tools\build.ps1 dm32 -Setup          only prepare the environment, build nothing
+#   tools\build.ps1 -Tests               the host tests (make -C tests/host), no radio needed
+#   tools\build.ps1 dm32 -CI             tools/ci.sh for that radio: the gate a pull request must pass
 #   tools\build.ps1 -List                the radios this tree can build
 #
 # First run on a new machine: it installs what is missing (WSL and a distribution, the Ubuntu packages a toolchain
@@ -25,6 +27,9 @@
 #   -Board <id>      the radio, as boards/<id> (positional, so -Board is optional)
 #   -Distro <name>   which WSL distribution to build in (default: the first real one installed)
 #   -Jobs <n>        parallel make jobs (default: the processor count)
+#   -Tests           run the host tests instead of building an image; a radio is optional and only decides
+#                    whether its toolchain is set up first
+#   -CI              run tools/ci.sh --quick for the radio instead of a plain build
 #   -Setup           prepare the environment and stop
 #   -SkipSetup       assume the environment is ready and run make alone (a fast rebuild)
 #   -Here            run in this console instead of a new window, for a script or CI
@@ -43,6 +48,8 @@ param(
 	[switch]$Here,
 	[switch]$CloseWhenDone,
 	[switch]$AI,
+	[switch]$Tests,
+	[switch]$CI,
 	[switch]$List,
 	[Parameter(ValueFromRemainingArguments = $true)][string[]]$MakeArgs
 )
@@ -97,6 +104,15 @@ function Convert-ToWslPath($WindowsPath, $InDistro) {
 	return $out.Trim()
 }
 
+# Several at once, in one wsl.exe start, in the order given
+function Convert-ToWslPaths($WindowsPaths, $InDistro) {
+	# One wslpath per path and no shell variable: a "$p" loop comes back empty, because wsl.exe does not hand the
+	# expression to sh intact, and wslpath with nothing to convert answers the working directory instead
+	$cmd = ($WindowsPaths | ForEach-Object { "wslpath -a '" + ($_ -replace '\\', '/') + "'" }) -join '; '
+	return @(& wsl.exe -d $InDistro -- sh -c $cmd 2>$null |
+		ForEach-Object { $_.Trim() } | Where-Object { $_ })
+}
+
 # The checkout this script sits in, never the current directory: the script works from anywhere
 $Root = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
 if (-not (Test-Path (Join-Path $Root 'Makefile'))) { Fail "no Makefile in $Root; is tools\build.ps1 still in the tree?" }
@@ -117,17 +133,19 @@ elevate itself to do it for you.)
 }
 
 # `wsl -l -q` lists installed distributions. The ones Docker Desktop manages are not general purpose, so skip them.
+# Named outright: taken as given, so nothing is listed. wsl -l -q is a WSL start like any other, and this runs
+# before the window opens
 $installed = @()
-try {
-	$installed = @(& wsl.exe -l -q 2>$null |
-		ForEach-Object { $_.Trim() } |
-		Where-Object { $_ -and $_ -notmatch '^docker-desktop' })
-} catch { $installed = @() }
+if (-not $Distro) {
+	try {
+		$installed = @(& wsl.exe -l -q 2>$null |
+			ForEach-Object { $_.Trim() } |
+			Where-Object { $_ -and $_ -notmatch '^docker-desktop' })
+	} catch { $installed = @() }
+}
 
 if ($Distro) {
-	if ($installed -notcontains $Distro) {
-		Fail "no WSL distribution named '$Distro'. Installed: $(if ($installed) { $installed -join ', ' } else { '(none)' })"
-	}
+	# nothing to check: a name that is not there fails on the first call, saying so
 } elseif ($installed.Count -ge 1) {
 	$Distro = $installed[0]
 } else {
@@ -153,20 +171,14 @@ Run this once from an ADMINISTRATOR PowerShell, reboot if it asks, then run this
 }
 Info "WSL distribution: $Distro"
 
-# This checkout, as the distribution sees it (/mnt/c/...)
-$WslRoot = Convert-ToWslPath $Root $Distro
-if (-not $WslRoot) { Fail "could not translate $Root into a WSL path" }
-Info "tree: $Root  ->  $WslRoot"
+# The checkout's WSL path is wanted too, but it is converted below with the rest in one call
 
 # ------------------------------------------------------------------ the radios
-# The board list comes from the registry, so a radio added to boards/ needs no edit here
-$boardList = @(& wsl.exe -d $Distro -- sh -c "cd '$WslRoot' && tools/boards.py list 2>/dev/null" |
-	ForEach-Object { $_.Trim() } | Where-Object { $_ })
-if (-not $boardList) {
-	# A distribution without Python 3.11 cannot answer yet; fall back to the directories themselves
-	$boardList = @(Get-ChildItem (Join-Path $Root 'boards') -Directory |
-		Where-Object { Test-Path (Join-Path $_.FullName 'board.mk') } | ForEach-Object { $_.Name })
-}
+# boards/ is read here rather than asked of the registry: everything before the window opens is time the person
+# waiting for the build stares at nothing, and starting Python inside WSL for a list of directory names is the
+# slowest part of it. The window itself checks the name against the registry, where it can be seen doing it.
+$boardList = @(Get-ChildItem (Join-Path $Root 'boards') -Directory |
+	Where-Object { Test-Path (Join-Path $_.FullName 'board.mk') } | ForEach-Object { $_.Name })
 
 if ($List) {
 	Write-Host "`nRadios this tree can build:`n"
@@ -175,12 +187,14 @@ if ($List) {
 	exit 0
 }
 
-if (-not $Board) {
+# -Tests is the host tests, which take no radio at all
+if (-not $Board -and -not $Tests) {
 	Write-Host @"
 
 build: say which radio to build.
 
     tools\build.ps1 <radio>
+    tools\build.ps1 -Tests        the host tests, no radio needed
 
 Radios: $($boardList -join ', ')
 
@@ -188,16 +202,20 @@ There is deliberately no default: an image for the wrong radio is easy to miss.
 "@
 	exit 2
 }
-if ($boardList -notcontains $Board) {
+if ($Board -and $boardList -notcontains $Board) {
 	Fail "no radio '$Board'. They are: $($boardList -join ', ')"
 }
+if ($CI -and -not $Board) { Fail '-CI needs a radio: tools\build.ps1 <radio> -CI' }
 
 if ($Jobs -le 0) {
 	$Jobs = [int]$env:NUMBER_OF_PROCESSORS
 	if ($Jobs -le 0) { $Jobs = 4 }
 }
 
-$doSetup = -not $SkipSetup
+# build: the image. tests: the host tests. ci: tools/ci.sh, the gate a pull request must pass
+$mode = if ($CI) { 'ci' } elseif ($Tests) { 'tests' } else { 'build' }
+# The host tests build with the host's own cc, so they need no cross toolchain to be installed first
+$doSetup = (-not $SkipSetup) -and ($mode -ne 'tests' -or $Board)
 $doBuild = -not $Setup
 $extra = if ($MakeArgs) { $MakeArgs -join ' ' } else { '' }
 $inline = [bool]$Here
@@ -207,17 +225,22 @@ $inline = [bool]$Here
 # window shows a readable script if anything goes wrong. It must have Unix line endings, or bash reads "set -u\r".
 $statusWin = Join-Path $env:TEMP "rfoundry-build-$PID.status"
 $scriptWin = Join-Path $env:TEMP "rfoundry-build-$PID.sh"
-$statusWsl = Convert-ToWslPath $statusWin $Distro
-
 # -AI keeps the whole run in build/, which is git ignored, so it can be read back after the window is gone
 $LogWin = ''
-$LogWsl = ''
 if ($AI) {
-	$LogWin = Join-Path $Root "build\build-$Board.log"
+	$LogWin = Join-Path $Root "build\build-$(if ($Board) { $Board } else { $mode }).log"
 	$null = New-Item -ItemType Directory -Force -Path (Split-Path $LogWin) -ErrorAction SilentlyContinue
-	$LogWsl = Convert-ToWslPath $LogWin $Distro
-	if (-not $LogWsl) { Fail "could not translate $LogWin into a WSL path" }
 }
+
+# All of them in one wsl.exe call: every start before the window opens is a pause the person sees nothing during
+$paths = @($Root, $statusWin, $scriptWin) + @(if ($LogWin) { $LogWin })
+$wslPaths = @(Convert-ToWslPaths $paths $Distro)
+if ($wslPaths.Count -ne $paths.Count) { Fail "could not translate the paths into WSL paths" }
+$WslRoot = $wslPaths[0]
+$statusWsl = $wslPaths[1]
+$scriptWsl = $wslPaths[2]
+$LogWsl = if ($LogWin) { $wslPaths[3] } else { '' }
+Info "tree: $Root  ->  $WslRoot"
 
 $bash = @'
 # Driven by tools/build.ps1; this file is generated per run and lives in the Windows temporary directory.
@@ -225,6 +248,7 @@ set -u
 
 ROOT="@@ROOT@@"
 BOARD="@@BOARD@@"
+MODE="@@MODE@@"
 JOBS="@@JOBS@@"
 EXTRA="@@EXTRA@@"
 DO_SETUP=@@DOSETUP@@
@@ -258,7 +282,13 @@ finish() {
 	if [ "$KEEP_OPEN" -eq 1 ]; then
 		echo
 		printf 'Press Enter to close this window... '
-		read -r _ignored || true
+		# From the console itself, not stdin: stdin here is not always a terminal, and read then takes the
+		# end of it for an answer and the window shuts before it can be read
+		if [ -r /dev/tty ]; then
+			read -r _ignored < /dev/tty || true
+		else
+			read -r _ignored || true
+		fi
 	fi
 	exit "$rc"
 }
@@ -266,7 +296,8 @@ finish() {
 cd "$ROOT" || finish 2
 
 say "RadioFoundry firmware build"
-note "radio:  $BOARD"
+[ -n "$BOARD" ] && note "radio:  $BOARD"
+note "doing:  $MODE"
 note "tree:   $ROOT"
 note "distro: $(. /etc/os-release 2>/dev/null; echo "${PRETTY_NAME:-unknown}")"
 note "jobs:   $JOBS"
@@ -284,6 +315,11 @@ if [ "$DO_SETUP" -eq 1 ]; then
 	note "$PY ($("$PY" -c 'import sys; print(sys.version.split()[0])'))"
 
 	# The radio's platform and that platform's toolchain, from the registry: no list of radios lives in this script
+	# The registry is what decides a radio is real; build.ps1 only checked boards/ had a directory of that name
+	if ! "$PY" tools/boards.py list | grep -qx "$BOARD"; then
+		note "no radio '$BOARD' in the registry. They are: $("$PY" tools/boards.py list --comma)"
+		finish 2
+	fi
 	PLATFORM=$("$PY" tools/boards.py get "$BOARD" platform) || finish 1
 	TC_CC=$("$PY" tools/boards.py platform "$PLATFORM" toolchain.cc) || finish 1
 	TC_NAME=$("$PY" tools/boards.py platform "$PLATFORM" toolchain.name) || finish 1
@@ -378,7 +414,26 @@ if [ "$DO_BUILD" -eq 0 ]; then
 	finish 0
 fi
 
-# ---------------------------------------------------------------- build
+# ---------------------------------------------------------------- run
+case "$MODE" in
+tests)
+	say "make -C tests/host -j$JOBS $EXTRA"
+	echo
+	# shellcheck disable=SC2086
+	make -C tests/host -j"$JOBS" $EXTRA
+	finish $?
+	;;
+ci)
+	# tools/ci.sh is the gate a pull request must pass, so it is run rather than restated here
+	say "tools/ci.sh --quick --board $BOARD $EXTRA"
+	note "host tests, the Python checks, the board's builds and the licence checks"
+	echo
+	# shellcheck disable=SC2086
+	JOBS="$JOBS" tools/ci.sh --quick --board "$BOARD" $EXTRA
+	finish $?
+	;;
+esac
+
 say "make BOARD=$BOARD -j$JOBS $EXTRA"
 echo
 # shellcheck disable=SC2086
@@ -397,6 +452,7 @@ finish 0
 $bash = $bash.
 	Replace('@@ROOT@@', $WslRoot).
 	Replace('@@BOARD@@', $Board).
+	Replace('@@MODE@@', $mode).
 	Replace('@@JOBS@@', "$Jobs").
 	Replace('@@EXTRA@@', $extra).
 	Replace('@@DOSETUP@@', $(if ($doSetup) { '1' } else { '0' })).
@@ -407,8 +463,6 @@ $bash = $bash.
 
 # LF, and no byte order mark: bash would choke on either
 [System.IO.File]::WriteAllText($scriptWin, ($bash -replace "`r`n", "`n"), (New-Object System.Text.UTF8Encoding $false))
-$scriptWsl = Convert-ToWslPath $scriptWin $Distro
-if (-not $scriptWsl) { Fail "could not translate $scriptWin into a WSL path" }
 Remove-Item $statusWin -ErrorAction SilentlyContinue
 
 try {
@@ -431,7 +485,7 @@ try {
 		$code = [int](Get-Content $statusWin -First 1).Trim()
 	}
 
-	if ($code -eq 0 -and $doBuild) {
+	if ($code -eq 0 -and $doBuild -and $mode -eq 'build') {
 		Info "done. Images in $(Join-Path $Root "build\$Board")"
 	} elseif ($code -eq 0) {
 		Info 'done.'
