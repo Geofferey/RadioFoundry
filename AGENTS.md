@@ -106,6 +106,9 @@ The source tree is in [README.md, Layout](README.md#layout). The layers and the 
   why where the code alone would mislead.
 - **Document a feature as it is.** Don't oversaturate the docs with how it used to work, what was tried instead, or
   why another way was rejected. The same applies to `docs/spec/` and `docs/user/`, not just to comments.
+- **Changing behavior overwrites what was written about it.** Replace the statement that is now wrong, in place.
+  Never leave the old one standing beside the new, and never append a correction: a reader must not have to work
+  out which of two statements holds. An assumption that turned out wrong is deleted, not annotated.
 - Keep RTOS calls and blocking waits out of protocol engines and UI behavior code, so the host tests can run them.
 - **Languages.** The radio and the site are translated ([docs/dev/translating.md](docs/dev/translating.md)). Mark text
   a user reads with a key and its English, `TR(KEY, "English")` (`TRN(KEY, ...)` in a static table or struct field,
